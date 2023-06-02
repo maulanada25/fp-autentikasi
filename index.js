@@ -14,26 +14,31 @@ app.use(cors());
 
 // Login endpoint
 app.post('/login', async (req, res) => {
-  const { username, password } = req.body;
+  try {
+    const { username, password } = req.body;
 
-  // Find user in the database
-  const user = await prisma.user.findUnique({ where: { username } });
+    // Find user in the database
+    const user = await prisma.user.findUnique({ where: { username } });
 
-  // User not found
-  if (!user) {
-    return res.status(401).json({ message: 'Invalid username or password' });
+    // User not found
+    if (!user) {
+      return res.status(401).json({ message: 'Invalid username or password' });
+    }
+
+    // Check if the password matches
+    if (!bcrypt.compareSync(password, user.password)) {
+      return res.status(401).json({ message: 'Invalid username or password' });
+    }
+
+    // Create a JWT token
+    const token = jwt.sign({ userId: user.id }, secretKey);
+
+    // Send the token as a response
+    res.json({ user, token });
+  } catch (error) {
+    console.error('Error logging in user:', error);
+    res.status(500).json({ message: 'Internal server error' });
   }
-
-  // Check if the password matches
-  if (!bcrypt.compareSync(password, user.password)) {
-    return res.status(401).json({ message: 'Invalid username or password' });
-  }
-
-  // Create a JWT token
-  const token = jwt.sign({ userId: user.id }, secretKey);
-
-  // Send the token as a response
-  res.json({ user, token });
 });
 
 app.post('/register', async (req, res) => {
@@ -73,15 +78,20 @@ app.get('/protected', authenticateToken, (req, res) => {
 });
 
 app.get('/me', authenticateToken, async (req, res) => {
-  const user = await prisma.user.findUnique({
-    where: { id: req.user.userId },
-  });
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.userId },
+    });
 
-  if(!user) {
-    return res.status(404).json({ message: 'User not found' });
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    res.json({ user });
+  } catch (error) {
+    console.error('Error getting user:', error);
+    res.status(500).json({ message: 'Internal server error' });
   }
-
-  res.json({ user });
 });
 
 // check health
